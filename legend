@@ -1,0 +1,295 @@
+import React, { useState, useEffect } from 'react';
+
+// 메인 App 컴포넌트 정의
+const App = () => {
+  // 대학교 데이터 (예시 데이터)
+  // 실제 서비스에서는 API 호출을 통해 데이터를 가져옵니다.
+  const initialUniversities = [
+    {
+      id: 1,
+      name: '서울대학교',
+      department: '전기정보공학부',
+      location: '서울',
+      homepage: 'https://www.snu.ac.kr',
+      deptPage: 'https://ee.snu.ac.kr',
+      description: '' // Gemini API로 생성될 설명 필드
+    },
+    {
+      id: 2,
+      name: '카이스트',
+      department: '전기및전자공학부',
+      location: '대전',
+      homepage: 'https://www.kaist.ac.kr',
+      deptPage: 'https://ee.kaist.ac.kr',
+      description: ''
+    },
+    {
+      id: 3,
+      name: '연세대학교',
+      department: '전기전자공학부',
+      location: '서울',
+      homepage: 'https://www.yonsei.ac.kr',
+      deptPage: 'https://ee.yonsei.ac.kr',
+      description: ''
+    },
+    {
+      id: 4,
+      name: '고려대학교',
+      department: '전기전자공학부',
+      location: '서울',
+      homepage: 'https://www.korea.ac.kr',
+      deptPage: 'https://ee.korea.ac.kr',
+      description: ''
+    },
+    {
+      id: 5,
+      name: '성균관대학교',
+      department: '전자전기공학부',
+      location: '수원',
+      homepage: 'https://www.skku.edu',
+      deptPage: 'https://ee.skku.edu',
+      description: ''
+    },
+    {
+      id: 6,
+      name: '한양대학교',
+      department: '전자공학부',
+      location: '서울',
+      homepage: 'https://www.hanyang.ac.kr',
+      deptPage: 'https://ee.hanyang.ac.kr',
+      description: ''
+    },
+    {
+      id: 7,
+      name: '포항공과대학교',
+      department: '전자전기공학과',
+      location: '포항',
+      homepage: 'https://www.postech.ac.kr',
+      deptPage: 'https://ee.postech.ac.kr',
+      description: ''
+    },
+    {
+      id: 8,
+      name: '부산대학교',
+      department: '전기전자공학과',
+      location: '부산',
+      homepage: 'https://www.pusan.ac.kr',
+      deptPage: 'https://ee.pusan.ac.kr',
+      description: ''
+    },
+    {
+      id: 9,
+      name: '경북대학교',
+      department: '전기공학과',
+      location: '대구',
+      homepage: 'https://www.knu.ac.kr',
+      deptPage: 'https://ee.knu.ac.kr',
+      description: ''
+    },
+    {
+      id: 10,
+      name: '아주대학교',
+      department: '전자공학과',
+      location: '수원',
+      homepage: 'https://www.ajou.ac.kr',
+      deptPage: 'https://ee.ajou.ac.kr',
+      description: ''
+    },
+  ];
+
+  // 상태 변수 정의
+  const [searchTerm, setSearchTerm] = useState(''); // 검색어
+  const [universities, setUniversities] = useState(initialUniversities); // 필터링된 대학교 목록
+  const [selectedUniversity, setSelectedUniversity] = useState(null); // 선택된 대학교
+  const [isLoading, setIsLoading] = useState(false); // 로딩 상태
+
+  // Gemini API를 사용하여 대학교 학과 설명 생성
+  const generateDescription = async (universityName, departmentName) => {
+    setIsLoading(true);
+    try {
+      const prompt = `${universityName} ${departmentName}에 대한 간략한 설명을 50자 이내로 작성해 주세요.`;
+      let chatHistory = [];
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+      const payload = { contents: chatHistory };
+      const apiKey = ""; // API 키는 Canvas 환경에서 자동으로 제공됩니다.
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      // 응답이 성공적인지 확인
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Gemini API 오류: ${response.status} ${response.statusText}`, errorText);
+        // 401 오류에 대한 특정 메시지 추가
+        if (response.status === 401) {
+          return "API 키가 유효하지 않거나 권한이 없습니다. Canvas 환경 설정을 확인해주세요.";
+        }
+        return `설명을 불러올 수 없습니다. 오류 코드: ${response.status}`;
+      }
+
+      const result = await response.json(); // 여기서 오류가 발생할 수 있음
+
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        const text = result.candidates[0].content.parts[0].text;
+        return text;
+      } else {
+        console.error("Gemini API 응답 구조가 예상과 다릅니다.", result);
+        return "설명을 불러올 수 없습니다.";
+      }
+    } catch (error) {
+      console.error("Gemini API 호출 중 오류 발생:", error);
+      // SyntaxError: Unexpected end of input 오류를 더 명확하게 처리
+      if (error instanceof SyntaxError && error.message.includes('Unexpected end of input')) {
+        return "API 응답이 비어있거나 유효한 JSON 형식이 아닙니다.";
+      }
+      return "설명 생성 중 오류가 발생했습니다.";
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시 각 대학교의 설명을 생성
+  useEffect(() => {
+    const fetchDescriptions = async () => {
+      // 로딩 상태를 true로 설정하여 모든 설명이 로딩 중임을 표시
+      setIsLoading(true);
+      const updatedUniversities = await Promise.all(
+        initialUniversities.map(async (uni) => {
+          const description = await generateDescription(uni.name, uni.department);
+          return { ...uni, description };
+        })
+      );
+      setUniversities(updatedUniversities);
+      // 모든 설명 로딩 완료 후 로딩 상태를 false로 설정
+      setIsLoading(false);
+    };
+
+    fetchDescriptions();
+  }, []); // 빈 배열은 컴포넌트가 처음 마운트될 때 한 번만 실행됨을 의미합니다.
+
+
+  // 검색어 변경 핸들러
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
+
+  // 대학교 필터링 로직
+  const filteredUniversities = universities.filter(uni =>
+    uni.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    uni.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    uni.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // 대학교 상세 정보 보기 핸들러
+  const handleViewDetails = (university) => {
+    setSelectedUniversity(university);
+  };
+
+  // 상세 정보 닫기 핸들러
+  const handleCloseDetails = () => {
+    setSelectedUniversity(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 font-inter">
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-gray-800 mb-6">
+          <span className="text-blue-600">전기전자공학과</span> 대학교 찾기
+        </h1>
+
+        {/* 검색 입력 필드 */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="대학교, 학과, 지역으로 검색하세요..."
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+            value={searchTerm}
+            onChange={handleSearchChange}
+          />
+        </div>
+
+        {/* 로딩 인디케이터 */}
+        {isLoading && (
+          <div className="flex justify-center items-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p className="ml-3 text-gray-600">정보를 불러오는 중...</p>
+          </div>
+        )}
+
+        {/* 대학교 목록 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredUniversities.length > 0 ? (
+            filteredUniversities.map(uni => (
+              <div
+                key={uni.id}
+                className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between"
+              >
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-1">{uni.name}</h2>
+                  <p className="text-blue-600 font-medium mb-2">{uni.department}</p>
+                  <p className="text-gray-600 text-sm mb-3">위치: {uni.location}</p>
+                  <p className="text-gray-700 text-sm mb-3">{uni.description}</p> {/* 생성된 설명 표시 */}
+                </div>
+                <button
+                  onClick={() => handleViewDetails(uni)}
+                  className="mt-4 w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                >
+                  상세 정보 보기
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="col-span-full text-center text-gray-600 text-lg py-8">
+              검색 결과가 없습니다.
+            </p>
+          )}
+        </div>
+
+        {/* 상세 정보 모달 (선택된 대학교가 있을 경우에만 표시) */}
+        {selectedUniversity && (
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all scale-100 opacity-100">
+              <h2 className="text-2xl font-bold text-gray-800 mb-3">{selectedUniversity.name}</h2>
+              <p className="text-blue-600 font-semibold mb-2">{selectedUniversity.department}</p>
+              <p className="text-gray-700 mb-4">위치: {selectedUniversity.location}</p>
+              <p className="text-gray-700 mb-4">{selectedUniversity.description}</p> {/* 생성된 설명 표시 */}
+
+              <div className="space-y-3">
+                <a
+                  href={selectedUniversity.homepage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full bg-green-500 text-white py-2 px-4 rounded-md text-center hover:bg-green-600 transition-colors duration-200"
+                >
+                  학교 홈페이지
+                </a>
+                <a
+                  href={selectedUniversity.deptPage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full bg-purple-500 text-white py-2 px-4 rounded-md text-center hover:bg-purple-600 transition-colors duration-200"
+                >
+                  학과 홈페이지
+                </a>
+                <button
+                  onClick={handleCloseDetails}
+                  className="block w-full bg-gray-300 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors duration-200 mt-4"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default App;
